@@ -1,0 +1,122 @@
+/**
+ * cleanupEmail 
+ * 
+ * specifications:
+ * ***************
+ *
+ * - send a report of the execution 
+ *   "!" prefix in a report line means that the action hasn't been perform (dry run to test behavior)
+ *
+ * How to use it:
+ * **************
+ * - copy this script onto your https://script.google.com/
+ * - adapt first parameters to fit your needs
+ * - schedule the script
+ * - set "productionMail" or "promotionMail" to true if and only if you have tested before.
+ * - don't forget to add GMail as Services and autorisation of this script
+ * - when you create a filter 'keep' the mail wil not be deleted
+ * - filter with label 'noreport' you don't get the report of the mail items
+ *
+ **/
+ function cleanupEmail____________MainEntryPoint() {
+  // general parameters
+  var maxThreads = 500;
+  var labelKeep = "keep";
+  var labelNoReport = "noreport";
+  var reportTitle = '#GGScript cleanupEmail report ';
+
+  var productionMail = true; 
+  //var promotionMail = false; 
+  var organizeReport = [];
+
+  // get threads to spam
+  var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " !label:" + labelNoReport + " label:spam");
+  deleteThreads("delete spam", organizeReport, productionMail, arrThreads, true);
+
+  var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " label:" + labelNoReport + " label:spam");
+  deleteThreads("delete spam",organizeReport, productionMail, arrThreads, false);
+
+  //var promotionThreads = searchThreads( maxThreads, "!label:" + labelKeep + " category:promotions {from:@company.com from:@company2.com}"); 
+  //deleteThreads("delete promotion",organizeReport, promotionMail, promotionThreads, false);
+
+  // send report by email
+  sendReport(reportTitle, organizeReport);
+}
+
+function toString(thread) {
+  var messages = thread.getMessages()
+  var senderEmail = messages[0].getFrom();
+  var toEmail = messages[0].getTo();
+  return  thread.getLastMessageDate() + "<br>From: " + senderEmail + "<br>To: " + toEmail + "<br>Subject: " + thread.getFirstMessageSubject() + " [" + thread.getMessageCount() + "]";
+}
+
+function isLabel(labels, labelML) {
+    var i = labels.length;
+    while (i--) {
+       if (labels[i].getName().indexOf(labelML) === 0) {
+           return true;
+       }
+    }
+    return false;
+}
+
+function searchThreads( maxThreads, filterMail) {
+  var threads = GmailApp.search(filterMail, 0, maxThreads);
+  var rez = [];
+  for (var i=0; i < threads.length ; i++ ) {
+    var t = threads[i];
+    rez.push(t);
+  }
+  Logger.log("\nsearchThreads filter:" + filterMail + " result:" + rez.length);
+  return rez;
+}
+
+function deleteThreads(nameThread, organizeReport, spamMail, arrThreads, report) {
+  if ((arrThreads == undefined) || (arrThreads.length < 1)) {
+    return;
+  }
+
+  if (report) { 
+    organizeReport.push(nameThread + " " + arrThreads.length);
+  }
+  for (var i=0; i < arrThreads.length ; i++ ) {
+    var t = arrThreads[i];
+    if (spamMail) {
+      var thisid=arrThreads[i].getId();
+      if (report) { 
+          organizeReport.push(" delete --> " + toString(t));
+      }
+      var me = Session.getActiveUser().getEmail();
+      Gmail.Users.Threads.remove(me, thisid);      
+    } else {
+      if (report) { 
+          organizeReport.push("!delete --> " + toString(t));
+      }
+    }
+  }
+}
+
+function sendReport(reportTitle, organizeReport) {
+  if ((organizeReport == undefined) || (organizeReport.length < 1)) {
+    return;
+  }
+  var reportRecipient = Session.getActiveUser().getEmail();
+  var reportLogs = "Execution Script's logs :\n" + Logger.getLog();
+  var reportText = "Organize Email Report\n\n";
+  var reportHtml = "Organize Email Report\n\n<ul>";
+  for (var j=0; j < organizeReport.length ; j++ ) {
+    var line = organizeReport[j];
+    reportText += line + "\n";
+    reportHtml += "<li>" + line + "</li>\n";
+  }
+  reportHtml += "</ul>";
+  
+  if (reportLogs) {
+    reportText += "\n-------------------------\n\n"+reportLogs;
+    reportHtml += "<hr/>\n<pre>"+reportLogs + "</pre>";
+  }
+  
+  GmailApp.sendEmail(reportRecipient, reportTitle, reportText, {
+     htmlBody: reportHtml
+ });
+}
