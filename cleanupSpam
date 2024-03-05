@@ -30,13 +30,13 @@
   var organizeReport = [];
 
   // get threads to spam
-  var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " !label:" + labelNoReport + " label:spam");
+  var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " !label:" + labelNoReport + " label:spam", true);
   deleteThreads("delete spam", organizeReport, productionMail, arrThreads, true);
 
-  var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " label:" + labelNoReport + " label:spam");
+  var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " label:" + labelNoReport + " label:spam", false);
   deleteThreads("delete spam",organizeReport, productionMail, arrThreads, false);
 
-  //var promotionThreads = searchThreads( maxThreads, "!label:" + labelKeep + " category:promotions {from:@company.com from:@company2.com}"); 
+  //var promotionThreads = searchThreads( maxThreads, "!label:" + labelKeep + " category:promotions {from:@company.com from:@company2.com}", false); 
   //deleteThreads("delete promotion",organizeReport, promotionMail, promotionThreads, false);
 
   // send report by email
@@ -50,14 +50,16 @@ function toString(thread) {
   return  thread.getLastMessageDate() + "<br>From: " + senderEmail + "<br>To: " + toEmail + "<br>Subject: " + thread.getFirstMessageSubject() + " [" + thread.getMessageCount() + "]";
 }
 
-function searchThreads( maxThreads, filterMail) {
+function searchThreads( maxThreads, filterMail, report) {
   var threads = GmailApp.search(filterMail, 0, maxThreads);
   var rez = [];
   for (var i=0; i < threads.length ; i++ ) {
     var t = threads[i];
     rez.push(t);
   }
-  Logger.log("\nsearchThreads filter:" + filterMail + " result:" + rez.length);
+  if (report){
+    Logger.log("\nsearchThreads filter:" + filterMail + " result:" + rez.length);
+  }
   return rez;
 }
 
