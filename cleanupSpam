@@ -53,7 +53,7 @@ function toString(thread, organizeReport, createfilter) {
   }
   var aliases = GmailApp.getAliases();
   if (aliases.length > 0) {
-    senderEmail += " <" + aliases[0] + ">";
+    senderEmail += " (" + aliases[0] + ")";
   }
   var toEmail = messages[0].getTo();
   return  thread.getLastMessageDate() + "<br>From: " + senderEmail + "<br>To: " + toEmail + "<br>Subject: " + thread.getFirstMessageSubject() + " [" + thread.getMessageCount() + "]";
@@ -94,9 +94,9 @@ function createFromFilter (fromAddress, labelName, organizeReport) {
  
   try {    
     Gmail.Users.Settings.Filters.create(filter, 'me')
-    organizeReport.push("filter create:<" + fromAddress + "> label:" + labelName);
+    organizeReport.push("filter create:" + fromAddress + " label:" + labelName);
   } catch(Exception){
-    Logger.log("\nfilter exists:<" + fromAddress + "> label:" + labelName);
+    Logger.log("\nfilter exists:" + fromAddress + " label:" + labelName);
   }
 }
 
