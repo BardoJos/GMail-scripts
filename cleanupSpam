@@ -1,10 +1,12 @@
 /**
- * cleanupEmail 
+ * organizeEmail - cleanup your spambox
  * 
  * specifications:
  * ***************
  *
  * - send a report of the execution 
+ * - automatic create filter from sender with label 'NoReport'. you can modify it for example 'keep'
+ *
  *   "!" prefix in a report line means that the action hasn't been perform (dry run to test behavior)
  *
  * How to use it:
@@ -18,12 +20,12 @@
  * - filter with label 'noreport' you don't get the report of the mail items
  *
  **/
- function cleanupEmail____________MainEntryPoint() {
+ function organizeEmail____________MainEntryPoint() {
   // general parameters
   var maxThreads = 500;
   var labelKeep = "keep";
   var labelNoReport = "noreport";
-  var reportTitle = '#GGScript cleanupEmail report ';
+  var reportTitle = '#GGScript organizeEmail report ';
 
   var productionMail = true; 
   //var promotionMail = false; 
@@ -31,23 +33,71 @@
 
   // get threads to spam
   var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " !label:" + labelNoReport + " label:spam", true);
-  deleteThreads("delete spam", organizeReport, productionMail, arrThreads, true);
+  deleteThreads("delete spam", organizeReport, productionMail, arrThreads, true, true);
 
   var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " label:" + labelNoReport + " label:spam", false);
-  deleteThreads("delete spam",organizeReport, productionMail, arrThreads, false);
-
-  //var promotionThreads = searchThreads( maxThreads, "!label:" + labelKeep + " category:promotions {from:@company.com from:@company2.com}", false); 
-  //deleteThreads("delete promotion",organizeReport, promotionMail, promotionThreads, false);
+  deleteThreads("delete spam",organizeReport, productionMail, arrThreads, false, false);
+ 
+  //var arrThreads = searchThreads( maxThreads, "!label:" + labelKeep + " category:promotions {from:@company.com from:@company2.com}"); 
+  //deleteThreads("delete promotion",organizeReport, promotionMail, arrThreads, false);
 
   // send report by email
   sendReport(reportTitle, organizeReport);
 }
 
-function toString(thread) {
-  var messages = thread.getMessages()
+function toString(thread, organizeReport, createfilter) {
+  var messages = thread.getMessages();
   var senderEmail = messages[0].getFrom();
+  if (createfilter) {
+    createFromFilter(senderEmail,'NoReport', organizeReport);
+  }
+  var aliases = GmailApp.getAliases();
+  if (aliases.length > 0) {
+    senderEmail += " <" + aliases[0] + ">";
+  }
   var toEmail = messages[0].getTo();
   return  thread.getLastMessageDate() + "<br>From: " + senderEmail + "<br>To: " + toEmail + "<br>Subject: " + thread.getFirstMessageSubject() + " [" + thread.getMessageCount() + "]";
+}
+
+//
+// Creates a filter to put all email from ${fromAddress} into
+// Gmail label ${labelName}
+//
+function createFromFilter (fromAddress, labelName, organizeReport) {
+
+  // Lists all the labels for the user running the script, 'me'
+  var labels = Gmail.Users.Labels.list('me')
+
+  // Search through the existing labels for ${labelName}
+  var label = null
+  labels.labels.forEach(function (l) {
+    if (l.name === labelName) {
+      label = l
+    }
+  })
+
+  // If the label doesn't exist, return
+  if (label === null) return
+
+  // Create a new filter object
+  var filter = Gmail.newFilter()
+
+  // Make the filter activate when the to address is ${fromAddress}
+  filter.criteria = Gmail.newFilterCriteria()
+  filter.criteria.from = fromAddress
+
+  // Make the filter apply the label id of ${labelName}
+  filter.action = Gmail.newFilterAction()
+  filter.action.addLabelIds = [label.id]
+
+  // Add the filter to the user's ('me') settings
+ 
+  try {    
+    Gmail.Users.Settings.Filters.create(filter, 'me')
+    organizeReport.push("filter create:<" + fromAddress + "> label:" + labelName);
+  } catch(Exception){
+    Logger.log("\nfilter exists:<" + fromAddress + "> label:" + labelName);
+  }
 }
 
 function searchThreads( maxThreads, filterMail, report) {
@@ -57,13 +107,13 @@ function searchThreads( maxThreads, filterMail, report) {
     var t = threads[i];
     rez.push(t);
   }
-  if (report){
+  if (report) { 
     Logger.log("\nsearchThreads filter:" + filterMail + " result:" + rez.length);
   }
   return rez;
 }
 
-function deleteThreads(nameThread, organizeReport, spamMail, arrThreads, report) {
+function deleteThreads(nameThread, organizeReport, spamMail, arrThreads, report, createfilter) {
   if ((arrThreads == undefined) || (arrThreads.length < 1)) {
     return;
   }
@@ -76,13 +126,13 @@ function deleteThreads(nameThread, organizeReport, spamMail, arrThreads, report)
     if (spamMail) {
       var thisid=arrThreads[i].getId();
       if (report) { 
-          organizeReport.push(" delete --> " + toString(t));
+          organizeReport.push(" delete --> " + toString(t, organizeReport, createfilter));
       }
       var me = Session.getActiveUser().getEmail();
       Gmail.Users.Threads.remove(me, thisid);      
     } else {
       if (report) { 
-          organizeReport.push("!delete --> " + toString(t));
+          organizeReport.push("!delete --> " + toString(t, organizeReport, createfilter));
       }
     }
   }
@@ -110,5 +160,5 @@ function sendReport(reportTitle, organizeReport) {
   
   GmailApp.sendEmail(reportRecipient, reportTitle, reportText, {
      htmlBody: reportHtml
- });
+  });
 }
